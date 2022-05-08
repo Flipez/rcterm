@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -24,12 +24,12 @@ func (i item) Description() string { return i.desc }
 func (i item) FilterValue() string { return i.title }
 
 type model struct {
-	list            list.Model
+	channelList     list.Model
 	channelMessages list.Model
-	ready           bool
-	viewport        viewport.Model
 	connection      *ws.Connection
-	logs            []string
+	activeRoom      ws.ChatRoom
+
+	activeList int
 }
 
 type newRoomActivity struct {
@@ -40,8 +40,8 @@ type newMessagesActivity struct {
 	messages []ws.Message
 }
 
-type newLogActivity struct {
-	message string
+type newMessageSubActivity struct {
+	message ws.Message
 }
 
 func (m model) Init() tea.Cmd {
@@ -55,60 +55,66 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case newRoomActivity:
 		if msg.room.Name != "" {
-			m.list.InsertItem(0, item{title: msg.room.Name, room: msg.room})
+			m.channelList.InsertItem(0, item{title: msg.room.Name, room: msg.room})
 		}
 	case newMessagesActivity:
 		for _, msg := range msg.messages {
-			m.channelMessages.InsertItem(0, item{title: msg.Sender.Username, desc: msg.Message})
+			title := fmt.Sprintf("%s @ %s", msg.Sender.Username, time.Unix(0, int64(msg.Date.Timestamp)*int64(time.Millisecond)))
+			m.channelMessages.InsertItem(0, item{title: title, desc: msg.Message})
 		}
-	case newLogActivity:
-		m.logs = append(m.logs, msg.message)
-		//m.viewport.SetContent(strings.Join(m.logs, "\n"))
+	case newMessageSubActivity:
+		if m.activeRoom.Id == msg.message.Rid {
+			m.channelMessages.InsertItem(-1, item{title: msg.message.Sender.Username, desc: msg.message.Message})
+		} else {
+			m.channelMessages.NewStatusMessage(fmt.Sprintf("New message in %s from %s!", msg.message.Rid, msg.message.Sender.Username))
+		}
+
 	case tea.KeyMsg:
+		if msg.String() == "tab" {
+			m.activeList = (m.activeList + 1) % 2
+		}
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
 		if msg.String() == "enter" {
-			if i, ok := m.list.SelectedItem().(item); ok {
+			if i, ok := m.channelList.SelectedItem().(item); ok {
+				m.activeRoom = i.room
+				m.channelMessages.Title = i.room.Name
+				m.connection.OpenRoom(i.room.Id)
 				m.connection.GetHistory(i.room.Id)
-				for i, _ := range m.channelMessages.Items() {
+				for i := range m.channelMessages.Items() {
 					m.channelMessages.RemoveItem(i)
 				}
 			}
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v)
+		m.channelList.SetSize(msg.Width-h, msg.Height-v)
 		m.channelMessages.SetSize(msg.Width-h, msg.Height-v)
-
-		if !m.ready {
-			m.viewport = viewport.New(msg.Width-h, msg.Height-v)
-			m.ready = true
-		} else {
-			m.viewport.Height = msg.Height - v
-			m.viewport.Width = msg.Width - h
-		}
 	}
 
-	m.list, cmd = m.list.Update(msg)
-	cmds = append(cmds, cmd)
-	m.viewport, cmd = m.viewport.Update(msg)
-	cmds = append(cmds, cmd)
+	if m.activeList == 0 {
+		m.channelList, cmd = m.channelList.Update(msg)
+		cmds = append(cmds, cmd)
+	} else {
+		m.channelMessages, cmd = m.channelMessages.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 	return m, tea.Batch(cmds...)
 }
 
 func (m model) View() string {
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		m.list.View(),
+		m.channelList.View(),
 		m.channelMessages.View(),
-		m.viewport.View())
+	)
 }
 
 func main() {
 	newRoom := make(chan ws.ChatRoom)
 	messages := make(chan []ws.Message)
-	newLog := make(chan string, 1000)
+	messageSubs := make(chan ws.Message)
 
 	items := []list.Item{}
 
@@ -117,13 +123,30 @@ func main() {
 	delegate.SetSpacing(0)
 
 	channelMessagesDelegate := list.NewDefaultDelegate()
+	channelMessagesDelegate.Styles.NormalDesc = lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#1a1a1a", Dark: "#dddddd"}).
+		Padding(0, 0, 0, 2)
+	channelMessagesDelegate.Styles.NormalTitle = lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#A49FA5", Dark: "#777777"}).
+		Padding(0, 0, 0, 2)
+	channelMessagesDelegate.Styles.SelectedDesc = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(lipgloss.AdaptiveColor{Light: "#F793FF", Dark: "#AD58B4"}).
+		Foreground(lipgloss.AdaptiveColor{Light: "#EE6FF8", Dark: "#EE6FF8"}).
+		Padding(0, 0, 0, 1)
 
-	m := model{list: list.New(items, delegate, 0, 0), channelMessages: list.New(items, channelMessagesDelegate, 0, 0)}
-	m.list.Title = "Channels"
+	channelMessagesDelegate.Styles.SelectedTitle = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(lipgloss.AdaptiveColor{Light: "#F793FF", Dark: "#AD58B4"}).
+		Foreground(lipgloss.AdaptiveColor{Light: "#F793FF", Dark: "#AD58B4"}).
+		Padding(0, 0, 0, 1)
+
+	m := model{channelList: list.New(items, delegate, 0, 0), channelMessages: list.New(items, channelMessagesDelegate, 0, 0)}
+	m.channelList.Title = "Channels"
+
 	m.channelMessages.Title = "Channel Name Here"
-	m.channelMessages.Styles.StatusBar = lipgloss.NewStyle()
 
-	m.connection = &ws.Connection{RoomChannel: newRoom, MessagesChannel: messages, LogsChannel: newLog}
+	m.connection = &ws.Connection{RoomChannel: newRoom, MessagesChannel: messages, MessageSubChannel: messageSubs}
 	m.connection.Connect()
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
@@ -135,8 +158,8 @@ func main() {
 				p.Send(newRoomActivity{room})
 			case newMessages := <-messages:
 				p.Send(newMessagesActivity{newMessages})
-			case log := <-newLog:
-				p.Send(newLogActivity{log})
+			case msg := <-messageSubs:
+				p.Send(newMessageSubActivity{msg})
 			}
 		}
 	}()

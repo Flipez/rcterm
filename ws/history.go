@@ -6,7 +6,7 @@ import (
 )
 
 type LoadHistory struct {
-	GetMessage
+	MethodMessage
 	Params LoadHistoryParams `json:"params"`
 }
 
@@ -46,7 +46,7 @@ func (c *Connection) GetHistory(roomId string) error {
 		CacheDate: Date(time.Now().Unix()),
 	}
 
-	msg, _ := json.Marshal(LoadHistory{GetMessage: GetMessage{Message: "method", Method: "loadHistory", Id: id.String()}, Params: params})
+	msg, _ := json.Marshal(LoadHistory{MethodMessage: MethodMessage{Message: "method", Method: "loadHistory", Id: id.String()}, Params: params})
 	err := c.Send(msg)
 	if err != nil {
 		return err

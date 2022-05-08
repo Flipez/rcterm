@@ -25,8 +25,10 @@ type LoginMessage struct {
 }
 
 type User struct {
-	Id       string `json:"_id"`
-	Username string `json:"username"`
+	Id           string   `json:"_id"`
+	Username     string   `json:"username"`
+	Roles        []string `json:"roles"`
+	CustomFields []string `json:"customFields"`
 }
 
 type ChatRoom struct {
@@ -39,11 +41,16 @@ type ChatRoom struct {
 }
 
 type Message struct {
-	Id        string `json:"id"`
-	Rid       string `json:"rid"`
-	Message   string `json:"msg"`
-	Timestamp string `json:"ts"`
-	Sender    User   `json:"u"`
+	Id      string      `json:"id"`
+	Rid     string      `json:"rid"`
+	Message string      `json:"msg"`
+	Date    MessageDate `json:"ts"`
+	Sender  User        `json:"u"`
+	Alias   string      `json:"alias"`
+}
+
+type MessageDate struct {
+	Timestamp int `json:"$date"`
 }
 
 type Date int

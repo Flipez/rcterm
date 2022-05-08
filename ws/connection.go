@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,12 +14,12 @@ import (
 )
 
 type Connection struct {
-	config          config.RctermConfig
-	con             *websocket.Conn
-	pendingActions  map[uuid.UUID]string
-	RoomChannel     chan ChatRoom
-	MessagesChannel chan []Message
-	LogsChannel     chan string
+	config            config.RctermConfig
+	con               *websocket.Conn
+	pendingActions    map[uuid.UUID]string
+	RoomChannel       chan ChatRoom
+	MessagesChannel   chan []Message
+	MessageSubChannel chan Message
 }
 
 func (c *Connection) Connect() {
@@ -37,10 +38,12 @@ func (c *Connection) Connect() {
 	c.Send(msg)
 
 	c.Listen()
+	c.SubscribeOwn()
 }
 
 func (c *Connection) Send(message []byte) error {
-	c.LogsChannel <- string(message)
+	log.Println(string(message))
+	//c.LogsChannel <- string(message)
 	err := c.con.WriteMessage(websocket.TextMessage, message)
 	if err != nil {
 		log.Println("write:", err)
@@ -52,6 +55,14 @@ func (c *Connection) Send(message []byte) error {
 
 func (c *Connection) Listen() {
 	go func() {
+
+		f, err := os.OpenFile("messages.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatalf("error opening file: %v", err)
+		}
+		defer f.Close()
+		log.SetOutput(f)
+
 		for {
 			_, message, err := c.con.ReadMessage()
 			if err != nil {
@@ -59,7 +70,8 @@ func (c *Connection) Listen() {
 				return
 			}
 
-			c.LogsChannel <- string(message)
+			log.Println(string(message))
+			//c.LogsChannel <- string(message)
 			var incomingMessage InMessage
 			json.Unmarshal(message, &incomingMessage)
 			switch incomingMessage.Message {
@@ -85,6 +97,14 @@ func (c *Connection) Listen() {
 				case "loadHistory":
 					c.ParseGetHistory(message)
 				}
+			case "changed":
+				var subMessage SubEvent
+				json.Unmarshal(message, &subMessage)
+
+				if subMessage.Collection == "stream-room-messages" {
+					c.ParseStreamRoomMessage(message)
+				}
+
 			}
 		}
 	}()
