@@ -101,3 +101,18 @@ func (m Model) View() string {
 		m.MessageList.View(),
 	)
 }
+
+func NewBaseModel() Model {
+	newRoom := make(chan ws.ChatRoom)
+	messages := make(chan []ws.Message)
+	messageSubs := make(chan ws.Message)
+
+	m := Model{ChannelList: NewChannelList(), MessageList: NewMessageList()}
+	m.ChannelList.Title = "Channels"
+
+	m.MessageList.Title = ""
+
+	m.Connection = &ws.Connection{RoomChannel: newRoom, MessagesChannel: messages, MessageSubChannel: messageSubs}
+
+	return m
+}
