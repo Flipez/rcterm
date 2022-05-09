@@ -16,10 +16,10 @@ import (
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
 type model struct {
-	channelList     list.Model
-	channelMessages list.Model
-	connection      *ws.Connection
-	activeRoom      ws.ChatRoom
+	channelList list.Model
+	messageList list.Model
+	connection  *ws.Connection
+	activeRoom  ws.ChatRoom
 
 	activeList int
 }
@@ -52,13 +52,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case newMessagesActivity:
 		for _, msg := range msg.messages {
 			title := fmt.Sprintf("%s @ %s", msg.Sender.Username, time.Unix(0, int64(msg.Date.Timestamp)*int64(time.Millisecond)))
-			m.channelMessages.InsertItem(0, tui.NewMessageListItem(title, msg.Message))
+			m.messageList.InsertItem(0, tui.NewMessageListItem(title, msg.Message))
 		}
 	case newMessageSubActivity:
 		if m.activeRoom.Id == msg.message.Rid {
-			m.channelMessages.InsertItem(-1, tui.NewMessageListItem(msg.message.Sender.Username, msg.message.Message))
+			m.messageList.InsertItem(-1, tui.NewMessageListItem(msg.message.Sender.Username, msg.message.Message))
 		} else {
-			m.channelMessages.NewStatusMessage(fmt.Sprintf("New message in %s from %s!", msg.message.Rid, msg.message.Sender.Username))
+			m.messageList.NewStatusMessage(fmt.Sprintf("New message in %s from %s!", msg.message.Rid, msg.message.Sender.Username))
 		}
 
 	case tea.KeyMsg:
@@ -71,25 +71,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "enter" {
 			if i, ok := m.channelList.SelectedItem().(tui.ChannelListItem); ok {
 				m.activeRoom = i.Room
-				m.channelMessages.Title = i.Room.Name
+				m.messageList.Title = i.Room.Name
 				m.connection.OpenRoom(i.Room.Id)
 				m.connection.GetHistory(i.Room.Id)
-				for i := range m.channelMessages.Items() {
-					m.channelMessages.RemoveItem(i)
+				for i := range m.messageList.Items() {
+					m.messageList.RemoveItem(i)
 				}
 			}
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
 		m.channelList.SetSize(msg.Width-h, msg.Height-v)
-		m.channelMessages.SetSize(msg.Width-h, msg.Height-v)
+		m.messageList.SetSize(msg.Width-h, msg.Height-v)
 	}
 
 	if m.activeList == 0 {
 		m.channelList, cmd = m.channelList.Update(msg)
 		cmds = append(cmds, cmd)
 	} else {
-		m.channelMessages, cmd = m.channelMessages.Update(msg)
+		m.messageList, cmd = m.messageList.Update(msg)
 		cmds = append(cmds, cmd)
 	}
 	return m, tea.Batch(cmds...)
@@ -99,7 +99,7 @@ func (m model) View() string {
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		m.channelList.View(),
-		m.channelMessages.View(),
+		m.messageList.View(),
 	)
 }
 
@@ -108,10 +108,10 @@ func main() {
 	messages := make(chan []ws.Message)
 	messageSubs := make(chan ws.Message)
 
-	m := model{channelList: tui.NewChannelList(), channelMessages: tui.NewMessageList()}
+	m := model{channelList: tui.NewChannelList(), messageList: tui.NewMessageList()}
 	m.channelList.Title = "Channels"
 
-	m.channelMessages.Title = ""
+	m.messageList.Title = ""
 
 	m.connection = &ws.Connection{RoomChannel: newRoom, MessagesChannel: messages, MessageSubChannel: messageSubs}
 	m.connection.Connect()
