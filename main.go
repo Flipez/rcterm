@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/flipez/rcterm/tui"
 	"github.com/flipez/rcterm/ws"
 )
 
@@ -116,35 +117,10 @@ func main() {
 	messages := make(chan []ws.Message)
 	messageSubs := make(chan ws.Message)
 
-	items := []list.Item{}
-
-	delegate := list.NewDefaultDelegate()
-	delegate.ShowDescription = false
-	delegate.SetSpacing(0)
-
-	channelMessagesDelegate := list.NewDefaultDelegate()
-	channelMessagesDelegate.Styles.NormalDesc = lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#1a1a1a", Dark: "#dddddd"}).
-		Padding(0, 0, 0, 2)
-	channelMessagesDelegate.Styles.NormalTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#A49FA5", Dark: "#777777"}).
-		Padding(0, 0, 0, 2)
-	channelMessagesDelegate.Styles.SelectedDesc = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(lipgloss.AdaptiveColor{Light: "#F793FF", Dark: "#AD58B4"}).
-		Foreground(lipgloss.AdaptiveColor{Light: "#EE6FF8", Dark: "#EE6FF8"}).
-		Padding(0, 0, 0, 1)
-
-	channelMessagesDelegate.Styles.SelectedTitle = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(lipgloss.AdaptiveColor{Light: "#F793FF", Dark: "#AD58B4"}).
-		Foreground(lipgloss.AdaptiveColor{Light: "#F793FF", Dark: "#AD58B4"}).
-		Padding(0, 0, 0, 1)
-
-	m := model{channelList: list.New(items, delegate, 0, 0), channelMessages: list.New(items, channelMessagesDelegate, 0, 0)}
+	m := model{channelList: tui.NewChannelList(), channelMessages: tui.NewMessageList()}
 	m.channelList.Title = "Channels"
 
-	m.channelMessages.Title = "Channel Name Here"
+	m.channelMessages.Title = ""
 
 	m.connection = &ws.Connection{RoomChannel: newRoom, MessagesChannel: messages, MessageSubChannel: messageSubs}
 	m.connection.Connect()
