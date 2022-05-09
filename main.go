@@ -15,15 +15,6 @@ import (
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
-type item struct {
-	title, desc string
-	room        ws.ChatRoom
-}
-
-func (i item) Title() string       { return i.title }
-func (i item) Description() string { return i.desc }
-func (i item) FilterValue() string { return i.title }
-
 type model struct {
 	channelList     list.Model
 	channelMessages list.Model
@@ -56,16 +47,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case newRoomActivity:
 		if msg.room.Name != "" {
-			m.channelList.InsertItem(0, item{title: msg.room.Name, room: msg.room})
+			m.channelList.InsertItem(0, tui.NewChannelListItem(msg.room.Name, msg.room))
 		}
 	case newMessagesActivity:
 		for _, msg := range msg.messages {
 			title := fmt.Sprintf("%s @ %s", msg.Sender.Username, time.Unix(0, int64(msg.Date.Timestamp)*int64(time.Millisecond)))
-			m.channelMessages.InsertItem(0, item{title: title, desc: msg.Message})
+			m.channelMessages.InsertItem(0, tui.NewMessageListItem(title, msg.Message))
 		}
 	case newMessageSubActivity:
 		if m.activeRoom.Id == msg.message.Rid {
-			m.channelMessages.InsertItem(-1, item{title: msg.message.Sender.Username, desc: msg.message.Message})
+			m.channelMessages.InsertItem(-1, tui.NewMessageListItem(msg.message.Sender.Username, msg.message.Message))
 		} else {
 			m.channelMessages.NewStatusMessage(fmt.Sprintf("New message in %s from %s!", msg.message.Rid, msg.message.Sender.Username))
 		}
@@ -78,11 +69,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		if msg.String() == "enter" {
-			if i, ok := m.channelList.SelectedItem().(item); ok {
-				m.activeRoom = i.room
-				m.channelMessages.Title = i.room.Name
-				m.connection.OpenRoom(i.room.Id)
-				m.connection.GetHistory(i.room.Id)
+			if i, ok := m.channelList.SelectedItem().(tui.ChannelListItem); ok {
+				m.activeRoom = i.Room
+				m.channelMessages.Title = i.Room.Name
+				m.connection.OpenRoom(i.Room.Id)
+				m.connection.GetHistory(i.Room.Id)
 				for i := range m.channelMessages.Items() {
 					m.channelMessages.RemoveItem(i)
 				}

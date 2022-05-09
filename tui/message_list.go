@@ -1,11 +1,20 @@
-package message_list
+package tui
 
 import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/lipgloss"
 )
 
-func Delegate() list.DefaultDelegate {
+type MessageListItem struct {
+	title       string
+	description string
+}
+
+func (ml MessageListItem) Title() string       { return ml.title }
+func (ml MessageListItem) Description() string { return ml.description }
+func (ml MessageListItem) FilterValue() string { return ml.title }
+
+func MessageListDelegate() list.DefaultDelegate {
 	delegate := list.NewDefaultDelegate()
 	delegate.Styles.NormalDesc = lipgloss.NewStyle().
 		Foreground(lipgloss.AdaptiveColor{Light: "#1a1a1a", Dark: "#dddddd"}).
@@ -28,6 +37,10 @@ func Delegate() list.DefaultDelegate {
 	return delegate
 }
 
-func New(items []list.Item) list.Model {
-	return list.New(items, Delegate(), 0, 0)
+func NewMessageList() list.Model {
+	return list.New(EmptyItems(), MessageListDelegate(), 0, 0)
+}
+
+func NewMessageListItem(title string, description string) MessageListItem {
+	return MessageListItem{title: title, description: description}
 }
