@@ -27,6 +27,7 @@ type LoginMessage struct {
 type User struct {
 	Id           string   `json:"_id"`
 	Username     string   `json:"username"`
+	Name         string   `json:"name"`
 	Roles        []string `json:"roles"`
 	CustomFields []string `json:"customFields"`
 }

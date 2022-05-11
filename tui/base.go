@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -50,12 +49,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case NewMessagesActivity:
 		for _, msg := range msg.Messages {
-			title := fmt.Sprintf("%s @ %s", msg.Sender.Username, time.Unix(0, int64(msg.Date.Timestamp)*int64(time.Millisecond)))
-			m.MessageList.InsertItem(0, NewMessageListItem(title, msg.Message))
+			m.MessageList.InsertItem(0, CreateMessageItem(msg))
 		}
 	case NewMessageSubActivity:
 		if m.ActiveRoom.Id == msg.Message.Rid {
-			m.MessageList.InsertItem(-1, NewMessageListItem(msg.Message.Sender.Username, msg.Message.Message))
+			item := CreateMessageItem(msg.Message)
+			index := len(m.MessageList.Items())
+			m.MessageList.InsertItem(index, item)
+			m.MessageList.Select(index)
 		} else {
 			m.MessageList.NewStatusMessage(fmt.Sprintf("New message in %s from %s!", msg.Message.Rid, msg.Message.Sender.Username))
 		}
