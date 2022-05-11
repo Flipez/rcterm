@@ -28,7 +28,8 @@ type Model struct {
 	Connection  *ws.Connection
 	ActiveRoom  ws.ChatRoom
 
-	ActiveList int
+	ActiveList     int
+	StatusBarWidth int
 }
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
@@ -81,8 +82,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
-		m.ChannelList.SetSize(msg.Width-h, msg.Height-v)
-		m.MessageList.SetSize(msg.Width-h, msg.Height-v)
+		m.ChannelList.SetSize(msg.Width-h-2, msg.Height-v-2)
+		m.MessageList.SetSize(msg.Width-h-2, msg.Height-v-2)
+		m.StatusBarWidth = msg.Width - h
 	}
 
 	if m.ActiveList == 0 {
@@ -96,11 +98,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	return lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		m.ChannelList.View(),
-		m.MessageList.View(),
-	)
+	return lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("63")).
+		Render(
+			lipgloss.JoinVertical(
+				lipgloss.Top,
+				lipgloss.JoinHorizontal(
+					lipgloss.Center,
+					m.ChannelList.View(),
+					m.MessageList.View(),
+				),
+				lipgloss.NewStyle().Width(m.StatusBarWidth).Background(lipgloss.Color("#3C3C3C")).Foreground(lipgloss.Color("202")).Height(1).Align(lipgloss.Right).Render("test"),
+			),
+		)
 }
 
 func NewBaseModel() Model {
